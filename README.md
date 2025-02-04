@@ -19,7 +19,8 @@
 ## Development
 
 1. `npm install`
-2. `npm run dev` in one tab; `node server.js` in another
+2. `npm run build`
+3. `npm run dev` in one tab; `node server.js` in another
 
 ## Deployment
 
