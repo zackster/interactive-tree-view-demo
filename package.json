@@ -1,0 +1,23 @@
+{
+  "name": "tree-view-app",
+  "version": "1.0.0",
+  "description": "Demo full-stack app for NomadGo",
+  "main": "server.js",
+  "keywords": [],
+  "author": "Zachary Burt",
+  "license": "ISC",
+  "scripts": {
+    "start": "node server.js",
+    "build": "vite build",
+    "dev": "vite"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "pg": "^8.13.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "vite": "^6.0.11",
+    "ws": "^8.18.0"
+  }
+}

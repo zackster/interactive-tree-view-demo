@@ -1,0 +1,32 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PGUSER=postgres
+      - PGHOST=db
+      - PGDATABASE=treeview
+      - PGPASSWORD=postgres
+      - PGPORT=5432
+      - VITE_API_URL=http://localhost:3000
+      - VITE_WS_URL=ws://localhost:3001
+    depends_on:
+      - db
+
+  db:
+    image: postgres:16
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=treeview
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+volumes:
+  postgres_data:
