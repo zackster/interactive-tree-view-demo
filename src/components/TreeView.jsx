@@ -197,9 +197,60 @@ const TreeNode = ({ node, onUpdate, onDelete, onAdd, onMove, level = 0 }) => {
     );
 };
 
+// Efficient node lookup map
+class TreeIndex {
+    constructor() {
+        this.nodeMap = new Map(); // Maps node ID to node reference
+        this.parentMap = new Map(); // Maps node ID to parent node reference
+    }
+
+    // O(1) node lookup
+    getNode(id) {
+        return this.nodeMap.get(id);
+    }
+
+    // O(1) parent lookup
+    getParent(id) {
+        return this.parentMap.get(id);
+    }
+
+    // O(1) operations for adding/updating nodes
+    addNode(node, parentNode = null) {
+        this.nodeMap.set(node.id, node);
+        if (parentNode) {
+            this.parentMap.set(node.id, parentNode);
+        }
+
+        // Index children recursively
+        if (node.children) {
+            node.children.forEach(child => this.addNode(child, node));
+        }
+    }
+
+    // O(1) operation for removing nodes
+    removeNode(id) {
+        const node = this.nodeMap.get(id);
+        if (node && node.children) {
+            // Remove all children from index
+            node.children.forEach(child => this.removeNode(child.id));
+        }
+        this.nodeMap.delete(id);
+        this.parentMap.delete(id);
+    }
+
+    // O(1) operation for updating parent references
+    updateParent(nodeId, newParentId) {
+        const newParent = this.nodeMap.get(newParentId);
+        if (newParent) {
+            this.parentMap.set(nodeId, newParent);
+        }
+    }
+}
+
 
 const TreeView = () => {
     const [treeData, setTreeData] = useState(null);
+    const treeIndex = useRef(new TreeIndex());
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [ws, setWs] = useState(null);
@@ -216,6 +267,15 @@ const TreeView = () => {
     const getExpandedState = (nodeId) => {
         return expandedStates.current.get(nodeId) ?? true; // Default to expanded
     };
+
+
+    // Initialize index when tree data is loaded
+    useEffect(() => {
+        if (treeData) {
+            treeIndex.current = new TreeIndex();
+            treeIndex.current.addNode(treeData);
+        }
+    }, [treeData]);
 
     // Recursively save expanded states for all nodes
     const saveAllExpandedStates = (node) => {
@@ -318,95 +378,79 @@ const TreeView = () => {
         saveTreeData(newTreeData);
     };
 
+
+    // O(1) node update operation
     const updateNode = (id, newLabel) => {
-        const updateNodeRecursive = (node) => {
-            if (node.id === id) {
-                return { ...node, label: newLabel };
-            }
-            if (node.children) {
-                return {
-                    ...node,
-                    children: node.children.map(updateNodeRecursive)
-                };
-            }
-            return node;
-        };
-        const newTree = updateNodeRecursive(treeData);
-        updateTreeData(newTree);
-    };
-
-    const deleteNode = (id) => {
-        const deleteNodeRecursive = (node) => {
-            if (node.children) {
-                return {
-                    ...node,
-                    children: node.children
-                        .filter(child => child.id !== id)
-                        .map(deleteNodeRecursive)
-                };
-            }
-            return node;
-        };
-        const newTree = deleteNodeRecursive(treeData);
-        updateTreeData(newTree);
-    };
-
-    const addNode = (parentId, newNode) => {
-        const addNodeRecursive = (node) => {
-            if (node.id === parentId) {
-                return {
-                    ...node,
-                    children: [...(node.children || []), newNode]
-                };
-            }
-            if (node.children) {
-                return {
-                    ...node,
-                    children: node.children.map(addNodeRecursive)
-                };
-            }
-            return node;
-        };
-        const newTree = addNodeRecursive(treeData);
-        updateTreeData(newTree);
-    };
-
-    const moveNode = (sourceId, targetId, position) => {
-        const newTree = { ...treeData };
-        const sourceNode = findNodeById(newTree, sourceId);
-
-        if (position === 'inside' && isDescendant(sourceNode, targetId)) {
-            return;
+        const node = treeIndex.current.getNode(id);
+        if (node) {
+            node.label = newLabel;
+            setTreeData({ ...treeData }); // Trigger re-render
+            saveTreeData(treeData);
         }
+    };
 
-        const sourceParent = findParent(newTree, sourceId);
-        const targetNode = findNodeById(newTree, targetId);
-        const targetParent = findParent(newTree, targetId);
+    // O(1) lookup + O(k) removal where k is number of children
+    const deleteNode = (id) => {
+        const node = treeIndex.current.getNode(id);
+        const parent = treeIndex.current.getParent(id);
+
+        if (node && parent) {
+            // Remove from parent's children array
+            parent.children = parent.children.filter(child => child.id !== id);
+            // Remove from index
+            treeIndex.current.removeNode(id);
+            setTreeData({ ...treeData });
+            saveTreeData(treeData);
+        }
+    };
+
+    // O(1) operation
+    const addNode = (parentId, newNode) => {
+        const parent = treeIndex.current.getNode(parentId);
+        if (parent) {
+            if (!parent.children) parent.children = [];
+            parent.children.push(newNode);
+            treeIndex.current.addNode(newNode, parent);
+            setTreeData({ ...treeData });
+            saveTreeData(treeData);
+        }
+    };
+
+    // O(1) lookup + O(1) move operation
+    const moveNode = (sourceId, targetId, position) => {
+        const sourceNode = treeIndex.current.getNode(sourceId);
+        const targetNode = treeIndex.current.getNode(targetId);
+        const sourceParent = treeIndex.current.getParent(sourceId);
+        const targetParent = treeIndex.current.getParent(targetId);
 
         if (!sourceNode || !targetNode) return;
 
+        // Remove from source parent
         if (sourceParent) {
             sourceParent.children = sourceParent.children.filter(
                 child => child.id !== sourceId
             );
         }
 
-        const nodeToMove = { ...sourceNode };
-
         if (position === 'inside') {
             if (!targetNode.children) targetNode.children = [];
-            targetNode.children.push(nodeToMove);
+            targetNode.children.push(sourceNode);
+            treeIndex.current.updateParent(sourceId, targetId);
         } else {
-            const targetParentChildren = (targetParent || newTree).children;
-            const targetIndex = targetParentChildren.findIndex(
+            const parentChildren = (targetParent || treeData).children;
+            const targetIndex = parentChildren.findIndex(
                 child => child.id === targetId
             );
             const newIndex = position === 'before' ? targetIndex : targetIndex + 1;
-            targetParentChildren.splice(newIndex, 0, nodeToMove);
+            parentChildren.splice(newIndex, 0, sourceNode);
+            treeIndex.current.updateParent(sourceId, targetParent?.id);
         }
 
-        updateTreeData(newTree);
+        setTreeData({ ...treeData });
+        saveTreeData(treeData);
     };
+
+
 
     if (loading) {
         return <div>Loading...</div>;
