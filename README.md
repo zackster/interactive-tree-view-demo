@@ -1,6 +1,6 @@
 # Features
 
-* Front-end should show a tree view. Each element in the tree is represented by a unique ID and a user-editable string.
+* Front-end shows a tree view.
 * The user can add, delete, and edit elements.
 * Non-leaf elements are expandible/collapsible.
 * The back-end is a RESTful web service.
